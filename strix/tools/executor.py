@@ -75,9 +75,22 @@ async def _execute_tool_in_sandbox(tool_name: str, agent_state: Any, **kwargs: A
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
                 raise RuntimeError("Authentication failed: Invalid or missing sandbox token") from e
-            raise RuntimeError(f"HTTP error calling tool server: {e.response.status_code}") from e
+            # Include FULL error details - status, URL, response body, headers
+            response_body = (
+                e.response.text if hasattr(e.response, "text") else str(e.response.content)
+            )
+            error_details = (
+                f"HTTP {e.response.status_code} Error\n"
+                f"URL: {request_url}\n"
+                f"Response Body: {response_body}\n"
+                f"Response Headers: {dict(e.response.headers)}\n"
+                f"Original Exception: {e}"
+            )
+            raise RuntimeError(f"Tool server request failed:\n{error_details}") from e
         except httpx.RequestError as e:
-            raise RuntimeError(f"Request error calling tool server: {e}") from e
+            # Include FULL error details for connection/network errors
+            error_details = f"Request Error: {type(e).__name__}\nURL: {request_url}\nDetails: {e}"
+            raise RuntimeError(f"Tool server connection failed:\n{error_details}") from e
 
 
 async def _execute_tool_locally(tool_name: str, agent_state: Any | None, **kwargs: Any) -> Any:
@@ -116,15 +129,8 @@ async def execute_tool_with_validation(
 
     assert tool_name is not None
 
-    try:
-        result = await execute_tool(tool_name, agent_state, **kwargs)
-    except Exception as e:  # noqa: BLE001
-        error_str = str(e)
-        if len(error_str) > 500:
-            error_str = error_str[:500] + "... [truncated]"
-        return f"Error executing {tool_name}: {error_str}"
-    else:
-        return result
+    result = await execute_tool(tool_name, agent_state, **kwargs)
+    return result
 
 
 async def execute_tool_invocation(tool_inv: dict[str, Any], agent_state: Any | None = None) -> Any:
@@ -139,7 +145,7 @@ def _check_error_result(result: Any) -> tuple[bool, Any]:
     error_payload: Any = None
 
     if (isinstance(result, dict) and "error" in result) or (
-        isinstance(result, str) and result.strip().lower().startswith("error:")
+        isinstance(result, str) and result.strip().lower().startswith("error")
     ):
         is_error = True
         error_payload = result

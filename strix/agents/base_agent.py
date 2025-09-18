@@ -168,6 +168,10 @@ class BaseAgent(metaclass=AgentMeta):
                 await self._wait_for_input()
                 continue
 
+            if self.state.execution_failed:
+                await self._wait_for_input()
+                continue
+
             self.state.increment_iteration()
 
             try:
@@ -181,16 +185,54 @@ class BaseAgent(metaclass=AgentMeta):
                 continue
 
             except LLMRequestFailedError as e:
-                self.state.add_error(f"LLM request failed: {e}")
+                import traceback
+
+                # Capture FULL error with traceback
+                full_traceback = traceback.format_exc()
+                error_msg = (
+                    f"LLM request failed:\n{e!s}\n\n--- Full Traceback ---\n{full_traceback}"
+                )
+                self.state.add_error(error_msg)
                 self.state.enter_waiting_state(llm_failed=True)
                 if tracer:
                     tracer.update_agent_status(self.state.agent_id, "llm_failed")
+                    # Log the full error with complete traceback as a chat message
+                    tracer.log_chat_message(
+                        content=f"❌ ERROR: LLM request failed:\n\n{e!s}\n\n--- Full Traceback ---\n{full_traceback}",
+                        role="system",
+                        agent_id=self.state.agent_id,
+                        metadata={
+                            "error_type": "llm_failed",
+                            "error": str(e),
+                            "traceback": full_traceback,
+                        },
+                    )
                 continue
 
             except (RuntimeError, ValueError, TypeError) as e:
-                if not await self._handle_iteration_error(e, tracer):
-                    await self._enter_waiting_state(tracer, error_occurred=True)
-                    continue
+                import traceback
+
+                # Capture FULL error with traceback
+                full_traceback = traceback.format_exc()
+                error_msg = (
+                    f"Tool execution failed:\n{e!s}\n\n--- Full Traceback ---\n{full_traceback}"
+                )
+                self.state.add_error(error_msg)
+                self.state.enter_waiting_state(execution_failed=True)
+                if tracer:
+                    tracer.update_agent_status(self.state.agent_id, "execution_failed")
+                    # Log the full error with complete traceback as a chat message
+                    tracer.log_chat_message(
+                        content=f"❌ ERROR: Tool execution failed:\n\n{e!s}\n\n--- Full Traceback ---\n{full_traceback}",
+                        role="system",
+                        agent_id=self.state.agent_id,
+                        metadata={
+                            "error_type": "execution_failed",
+                            "error": str(e),
+                            "traceback": full_traceback,
+                        },
+                    )
+                continue
 
     async def _wait_for_input(self) -> None:
         import asyncio
@@ -354,7 +396,7 @@ class BaseAgent(metaclass=AgentMeta):
                         sender_id = message.get("from")
 
                         if state.is_waiting_for_input():
-                            if state.llm_failed:
+                            if state.llm_failed or state.execution_failed:
                                 if sender_id == "user":
                                     state.resume_from_waiting()
                                     has_new_messages = True
