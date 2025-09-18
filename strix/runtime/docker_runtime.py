@@ -320,7 +320,8 @@ class DockerRuntime(AbstractRuntime):
         import httpx
 
         try:
-            async with httpx.AsyncClient() as client:
+            # Avoid inheriting Windows system proxies/PAC and add UA
+            async with httpx.AsyncClient(trust_env=False, headers={"User-Agent": "StrixAgent/1.0"}) as client:
                 response = await client.post(
                     f"{api_url}/register_agent",
                     params={"agent_id": agent_id},
@@ -337,7 +338,8 @@ class DockerRuntime(AbstractRuntime):
             container = self.client.containers.get(container_id)
             container.reload()
 
-            host = "localhost"
+            # Use IPv4 loopback to avoid IPv6/hosts resolution issues on Windows
+            host = "127.0.0.1"
             if "DOCKER_HOST" in os.environ:
                 docker_host = os.environ["DOCKER_HOST"]
                 if "://" in docker_host:

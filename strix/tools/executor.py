@@ -62,7 +62,8 @@ async def _execute_tool_in_sandbox(tool_name: str, agent_state: Any, **kwargs: A
         "Content-Type": "application/json",
     }
 
-    async with httpx.AsyncClient() as client:
+    # Disable env proxy usage and set a stable UA to avoid Windows proxy/PAC quirks
+    async with httpx.AsyncClient(trust_env=False, headers={"User-Agent": "StrixAgent/1.0"}) as client:
         try:
             response = await client.post(
                 request_url, json=request_data, headers=headers, timeout=None
