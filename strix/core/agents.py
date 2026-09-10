@@ -162,6 +162,8 @@ class AgentCoordinator:
         skills: list[str] | None = None,
     ) -> None:
         async with self._lock:
+            if self.is_shutting_down:
+                raise RuntimeError("scan is shutting down; no new agents may start")
             self.statuses[agent_id] = "running"
             self.parent_of[agent_id] = parent_id
             self.names[agent_id] = name

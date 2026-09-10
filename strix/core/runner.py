@@ -512,6 +512,11 @@ async def run_strix_scan(
         )
 
         async def spawn_child_agent(**kwargs: Any) -> dict[str, Any]:
+            if coordinator.is_shutting_down:
+                return {
+                    "success": False,
+                    "message": "The scan is shutting down; no new agent may start.",
+                }
             return await start_child_agent(
                 coordinator=coordinator,
                 factory=child_agent_builder,
@@ -641,6 +646,7 @@ async def run_strix_scan(
         return None
     except (asyncio.CancelledError, KeyboardInterrupt):
         logger.info("Scan %s interrupted by the user", scan_id)
+        coordinator.mark_shutting_down()
         if root_id is not None:
             with contextlib.suppress(Exception):
                 await coordinator.set_status(root_id, "running")
@@ -652,6 +658,7 @@ async def run_strix_scan(
                 await coordinator.set_status(root_id, "failed")
         raise
     finally:
+        coordinator.mark_shutting_down()
         configure_spill_writer(None)
         # Settle descendants before closing sessions: on a clean finish a child
         # can still be mid-turn, and closing its session underneath it crashes it.

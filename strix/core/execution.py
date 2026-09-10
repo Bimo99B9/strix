@@ -318,6 +318,11 @@ async def spawn_child_agent(
     event_sink: StreamEventSink | None = None,
     hooks: RunHooks[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    if coordinator.is_shutting_down:
+        return {
+            "success": False,
+            "message": "The scan deadline has passed; no new agent may start.",
+        }
     parent_id = parent_ctx.get("agent_id")
     if not isinstance(parent_id, str):
         raise TypeError("Parent agent_id missing from context")

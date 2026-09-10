@@ -83,6 +83,10 @@ async def test_user_interrupt_leaves_the_root_running_for_resume(
         )
 
     assert _root_status(coordinator) == "running"
+    assert coordinator.is_shutting_down is True
+
+    with pytest.raises(RuntimeError, match="shutting down"):
+        await coordinator.register("late-child", "late", parent_id="root")
 
 
 @pytest.mark.asyncio
