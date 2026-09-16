@@ -48,7 +48,14 @@ def resolve_litellm_model(model: str) -> str | None:
                 if isinstance(model_cost.get(key), dict)
             }
             if len(matches) == 1 or len(prices) == 1:
-                return matches[0]
+                # Prefer the canonical entry: the key with the fewest provider
+                # segments (``xai/grok-4.5`` over ``openrouter/x-ai/grok-4.5``),
+                # then the lexicographically first. Every match here prices the
+                # same, so the cost is unchanged either way; what the tie-break
+                # decides is which name is returned, and adding a reseller used
+                # to change it silently because the old pick was just
+                # ``matches[0]``.
+                return min(matches, key=lambda key: (key.count("/"), key))
         return None  # noqa: TRY300
     except Exception:  # noqa: BLE001
         return None
