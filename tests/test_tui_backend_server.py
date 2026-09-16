@@ -356,7 +356,11 @@ async def test_collection_bootstrap_is_chunked_deltas_are_incremental_and_idle_i
         complete: set[str] = set()
         state_received = False
         while not (complete == {"agents", "events", "vulnerabilities"} and state_received):
-            size, message = await asyncio.wait_for(receive_frame(child), timeout=5)
+            # Streaming 80 x 64 KiB frames through the socketpair is real work;
+            # 5 s is enough alone but not when the suite is running across every
+            # core, where this bootstrap timed out. The assertion is that it
+            # completes, not how fast.
+            size, message = await asyncio.wait_for(receive_frame(child), timeout=15)
             if message["type"] == "state":
                 state_received = True
             if message["type"] != "collection_bootstrap":

@@ -1,4 +1,4 @@
-.PHONY: help install dev-install format lint type-check security check-all clean pre-commit setup-dev dev viewer wheel tui-build tui-test tui-lint on-arena view
+.PHONY: help install dev-install format lint type-check security check-all clean pre-commit setup-dev dev viewer wheel tui-build tui-test tui-lint test test-serial on-arena view
 
 TUI_BINARY := build/sidecar/strix-tui$(if $(filter Windows_NT,$(OS)),.exe)
 
@@ -20,6 +20,8 @@ help:
 	@echo "  viewer        - Rebuild the local-viewer SPA (commit the output)"
 	@echo "  wheel         - Build a platform wheel with the bundled Go sidecar"
 	@echo "  clean         - Clean up cache files and artifacts"
+	@echo "  test          - Run the Python test suite across all cores"
+	@echo "  test-serial   - Run the Python test suite on one core"
 	@echo "  tui-build     - Build the Bubble Tea TUI"
 	@echo "  tui-test      - Test the Bubble Tea TUI"
 	@echo "  tui-lint      - Vet and format-check the Bubble Tea TUI"
@@ -76,6 +78,16 @@ clean:
 	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete 2>/dev/null || true
 	@echo "✅ Cleanup complete!"
+
+# The suite is large (~1,750 tests) and mostly waits on subprocesses and
+# timers rather than burning CPU, so running it across cores cuts the wall
+# time from minutes to well under a minute. `test-serial` is kept for a
+# readable, ordered transcript when a failure needs one.
+test:
+	uv run pytest tests/ -n auto
+
+test-serial:
+	uv run pytest tests/ -v
 
 viewer:
 	@echo "🖥️  Building the local-viewer SPA..."
