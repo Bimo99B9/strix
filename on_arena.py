@@ -56,7 +56,7 @@ from typing import Any
 
 
 ARENA_URL = os.getenv("ARENA_URL", "http://localhost:24000").rstrip("/")
-DEFAULT_MODEL = "openrouter/deepseek/deepseek-v4.1-flash"
+DEFAULT_MODEL = "openrouter/deepseek/deepseek-v4.1-flash-1017"
 # Where the model key lives when the operator has not exported it. The batch
 # runs every arm from one shell, so Strix reads the same key its siblings use
 # instead of making the operator remember which `.env` to source. Only the key
