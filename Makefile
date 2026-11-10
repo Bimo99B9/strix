@@ -1,4 +1,4 @@
-.PHONY: help install dev-install format lint format-check lint-check type-check security check-all clean pre-commit setup-dev dev viewer wheel tui-build tui-test tui-lint
+.PHONY: help install dev-install format lint format-check lint-check type-check security check-all clean pre-commit setup-dev dev viewer wheel tui-build tui-test tui-lint test test-serial on-arena view
 
 TUI_BINARY := build/sidecar/strix-tui$(if $(filter Windows_NT,$(OS)),.exe)
 
@@ -22,9 +22,15 @@ help:
 	@echo "  viewer        - Rebuild the local-viewer SPA (commit the output)"
 	@echo "  wheel         - Build a platform wheel with the bundled Go sidecar"
 	@echo "  clean         - Clean up cache files and artifacts"
+	@echo "  test          - Run the Python test suite across all cores"
+	@echo "  test-serial   - Run the Python test suite on one core"
 	@echo "  tui-build     - Build the Bubble Tea TUI"
 	@echo "  tui-test      - Test the Bubble Tea TUI"
 	@echo "  tui-lint      - Vet and format-check the Bubble Tea TUI"
+	@echo ""
+	@echo "ARENA:"
+	@echo "  on-arena      - Run Strix as a competitor on a lab (LAB=nexus SEED=0)"
+	@echo "  view          - Serve the live/finished run viewer (RUN=<id> VIEW_PORT=33000)"
 
 install:
 	uv sync --no-dev
@@ -81,6 +87,16 @@ clean:
 	find . -name "*.pyc" -delete 2>/dev/null || true
 	@echo "✅ Cleanup complete!"
 
+# The suite is large (~1,750 tests) and mostly waits on subprocesses and
+# timers rather than burning CPU, so running it across cores cuts the wall
+# time from minutes to well under a minute. `test-serial` is kept for a
+# readable, ordered transcript when a failure needs one.
+test:
+	uv run pytest tests/ -n auto
+
+test-serial:
+	uv run pytest tests/ -v
+
 viewer:
 	@echo "🖥️  Building the local-viewer SPA..."
 	cd strix/interface/viewer/frontend && npm ci && npm run build
@@ -101,3 +117,36 @@ tui-test:
 
 tui-lint:
 	cd strix/interface/tui && test -z "$$(gofmt -l .)" && go vet ./...
+
+# ---------------------------------------------------------------------------
+# ARENA: run Strix, unchanged, on a lab that measures it.
+#
+# The driver opens the range, grants the same foothold the other arms are
+# granted, puts this sandbox on the lab wire and seals a record under
+# system=strix. The range must be up (`../cyd.sh range`) and a model key must
+# be in the environment; see on_arena.py for the contract. The clock matches
+# the other arms, and is a backstop rather than a budget.
+#
+#   make on-arena LAB=nexus SEED=43
+#   make on-arena LAB=relay SEED=43 ARENA_TIMEOUT=2700
+#
+# Or, to launch arms together: ../arms.sh all nexus 43
+LAB  ?= nexus
+SEED ?= 0
+ARENA_TIMEOUT ?= 2700
+STRIX_SCAN_MODE ?= deep
+STRIX_MAX_TURNS ?= 500
+STRIX_MAX_BUDGET ?= 0
+on-arena:
+	uv run python on_arena.py --lab $(LAB) --seed $(SEED) \
+		--timeout $(ARENA_TIMEOUT) --scan-mode $(STRIX_SCAN_MODE) \
+		--max-turns $(STRIX_MAX_TURNS) --max-budget $(STRIX_MAX_BUDGET)
+
+# The run's own viewer: findings, the agent graph and live progress, the same
+# UI Strix ships. One run per port, so a batch opens one viewer per cell.
+# RUN defaults to the most recent run; the printed URL carries the token that
+# authorizes it. Bind 0.0.0.0 so it is reachable like the arm consoles.
+RUN ?=
+VIEW_PORT ?= 33000
+view:
+	uv run strix view $(RUN) --host 0.0.0.0 --port $(VIEW_PORT) --no-open

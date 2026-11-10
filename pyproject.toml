@@ -67,6 +67,7 @@ dev = [
   "pyinstaller>=6.17.0; python_version >= '3.12' and python_version < '3.15'",
   "pytest>=8.3",
   "pytest-asyncio>=0.24",
+  "pytest-xdist>=3.6",
   "types-requests>=2.32",
 ]
 
@@ -231,6 +232,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# ARENA's competitor driver: a standalone operator script, not part of the
+# shipped package. It prints a run summary, shells out to Docker to find the
+# sandbox address, imports Strix lazily so it can be read without the runtime
+# environment, and is deliberately one long orchestration function.
+"on_arena.py" = ["T20", "S603", "S607", "BLE001", "PLC0415", "INP001", "PLR0912", "PLR0915"]
 # Test doubles use fixture tokens/passwords and match a callee signature whose
 # args they intentionally ignore.
 "tests/test_viewer_auth.py" = ["S105", "S106", "ARG001"]
