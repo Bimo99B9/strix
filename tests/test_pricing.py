@@ -45,7 +45,23 @@ def _usage(input_tokens: int, output_tokens: int = 0, cached_tokens: int = 0) ->
     return usage
 
 
-def test_resolves_common_bare_model_names() -> None:
+def test_resolves_common_bare_model_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Pin the catalog: upstream reseller rates can diverge independently.
+    price = {"input_cost_per_token": 0.000001, "output_cost_per_token": 0.000002}
+    monkeypatch.setattr(
+        litellm,
+        "model_cost",
+        dict.fromkeys(
+            (
+                "deepseek/deepseek-v4-flash",
+                "minimax/MiniMax-M3",
+                "xai/grok-4.5",
+                "perplexity/xai/grok-4.5",
+                "openrouter/x-ai/grok-4.5",
+            ),
+            price,
+        ),
+    )
     resolve_litellm_model.cache_clear()
     assert resolve_litellm_model("deepseek-v4-flash") == "deepseek/deepseek-v4-flash"
     assert resolve_litellm_model("openai/deepseek-v4-flash") == "deepseek/deepseek-v4-flash"
